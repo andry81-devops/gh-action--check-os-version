@@ -1,0 +1,6 @@
+2022.08.31:
+* new: `README.md` readme file
+* new: `changelog.txt` changelog file
+* new: `userlog.md` userlog file
+* new: `license.txt` license file
+* new: action.yml: initial implementation

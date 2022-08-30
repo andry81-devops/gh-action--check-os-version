@@ -1,0 +1,351 @@
+# Tutorial to use with: https://github.com/andry81-devops/github-action-extensions
+#
+
+name: check-os-version
+description: 'GitHub composite action to check and read OS version details into variables'
+
+inputs:
+  gh-var-tags:
+    description: GitHub variables to return as list of tags
+    required: false
+    # example:
+    #   ```yml
+    #   gh-var-tags: runner-os ...
+    #   ```
+  linux-files:
+    description: Linux files to read as list of path lines separated by line return
+    required: false
+    # example:
+    #   ```yml
+    #   linux-files: |
+    #     /etc/os-release ...
+    #   ```
+  linux-command-lines:
+    description: Linux commands to execute as list of lines with quote characters
+    required: false
+    # example:
+    #   ```yml
+    #   linux-command-lines: |
+    #     echo "$"
+    #     lsb_release -a
+    #     hostnamectl
+    #     uname -r
+    #     ...
+    #   ```
+
+outputs:
+  json-return-values:
+    description: Escaped and encoded values in JSON format
+    value: ${{ steps.return-values.outputs.json-return-values }}
+    # examples:
+    #   `[ { "gh-vars": [ { "tag": "runner-os", "name": "runner.os", "value": "<escaped-and-encoded-variable-value>" }, ...] }, ...]`
+    #   `[ { "linux-files": [ { "file": "/etc/os-version", "value": "<escaped-and-encoded-file-content>" }, ...] }, ...]`
+    #   `[ { "linux-commands": [ { "line": "lsb_release -a", "command": "lsb_release", "args": [ "-a" ], "out": "<escaped-and-encoded-command-out>" }, "err": "<escaped-and-encoded-command-err>" }, ...] }, ...]`
+    #
+    #   , where `<escaped-and-encoded-file-content>` has these character escaping rules in predefined order:
+    #     \  -> \\
+    #     "  -> \"
+    #     %  -> %25
+    #     \n -> %0A
+    #     \r -> %0D
+    #
+
+runs:
+  using: "composite"
+  steps:
+    - name: check GitHub variables
+      id: check-gh-vars
+      shell: bash
+      run: |
+        IFS=$' \t' gh_var_tags=( ${{ inputs.gh-var-tags }} )
+        
+        prev_return_values="$JSON_RETURN_VALUES"
+        JSON_RETURN_VALUES=''
+        
+        if [[ -n "$prev_return_values" ]]; then
+          had_values=1
+        else
+          had_values=0
+        fi
+        
+        index=0
+        
+        IFS=$' \t'; for gh_var_tag in "${gh_var_tags[@]}"; do
+          gh_var_value=''
+          gh_var_name=''
+        
+          case "$gh_var_tag" in
+            runner-os)
+              gh_var_name='runner.os'
+        
+              # suppress not zero exit code
+              { IFS=$' \t' read -r -d '' gh_var_value || (( 1 )); } << ::EOF::
+        ${{ runner.os }}
+        ::EOF::
+        
+              # trim trailing line returns
+              gh_var_value="$(echo "$gh_var_value")"
+              ;;
+          esac
+        
+          if [[ -z "$gh_var_value" ]]; then
+            continue
+          fi
+          
+          if (( index )); then
+            JSON_RETURN_VALUES="$JSON_RETURN_VALUES, "
+          fi
+        
+          # escaping
+          gh_var_value="${gh_var_value//\\/\\\\}"
+          gh_var_value="${gh_var_value//\"/\\\"}"
+          gh_var_value="${gh_var_value//%/%25}"
+          gh_var_value="${gh_var_value//$'\n'/%0A}"
+          gh_var_value="${gh_var_value//$'\r'/%0D}"
+        
+          JSON_RETURN_VALUES="$JSON_RETURN_VALUES{ \"tag\": \"$gh_var_tag\", \"name\": \"$gh_var_name\", \"value\": \"$gh_var_value\" }"
+        
+          # suppress not zero exit code
+          (( index++, 1 ))
+        done
+        
+        if (( index )); then
+          if (( had_values )); then
+            prev_return_values="$prev_return_values, "
+          fi
+        
+          JSON_RETURN_VALUES="$prev_return_values{ \"gh-vars\": [ $JSON_RETURN_VALUES ] }"
+        
+          echo "JSON_RETURN_VALUES=$JSON_RETURN_VALUES" >> "$GITHUB_ENV"
+        fi
+
+    - name: check Linux files
+      id: check-linux-files
+      shell: bash
+      run: |
+        linux_file_paths=()
+        
+        prev_return_values="$JSON_RETURN_VALUES"
+        JSON_RETURN_VALUES=''
+        
+        if [[ -n "$prev_return_values" ]]; then
+          had_values=1
+        else
+          had_values=0
+        fi
+        
+        # suppress not zero exit code
+        { IFS=$' \t' read -r -d '' linux_file_paths_text || (( 1 )); } << ::EOF::
+        ${{ inputs.linux-files }}
+        ::EOF::
+        
+        # trim trailing line returns
+        linux_file_paths_text="$(echo "$linux_file_paths_text")"
+        
+        while IFS=$'\n' read -r linux_file_path; do
+          if [[ -n "${linux_file_path//$' \t'/}" ]]; then
+            linux_file_paths[${#linux_file_paths[@]}]="$linux_file_path"
+          fi
+        done <<< "$linux_file_paths_text"
+        
+        index=0
+        
+        IFS=$' \t'; for linux_file_path in "${linux_file_paths[@]}"; do
+          linux_file_value=''
+        
+          echo ">$linux_file_path"
+       
+          # disabled because sometimes fails w/o reason
+          #if ! which "$linux_file_path"; then
+          #  continue
+          #fi
+       
+          if (( index )); then
+            JSON_RETURN_VALUES="$JSON_RETURN_VALUES, "
+          fi
+        
+          # suppress not zero exit code
+          linux_file_value="$(<"$linux_file_path")" 2> "${{ runner.temp }}/err.txt" || (( 1 ))
+        
+          if [[ -n "$linux_file_value" ]]; then
+            # escaping
+            linux_file_value="${linux_file_value//\\/\\\\}"
+            linux_file_value="${linux_file_value//\"/\\\"}"
+            linux_file_value="${linux_file_value//%/%25}"
+            linux_file_value="${linux_file_value//$'\n'/%0A}"
+            linux_file_value="${linux_file_value//$'\r'/%0D}"
+          fi
+        
+          file_read_err="$(<"${{ runner.temp }}/err.txt")"
+          
+          if [[ -n "$file_read_err" ]]; then
+            echo "$file_read_err"$'\n---'
+        
+            # escaping
+            file_read_err="${file_read_err//\\/\\\\}"
+            file_read_err="${file_read_err//%/%25}"
+            file_read_err="${file_read_err//$'\n'/%0A}"
+            file_read_err="${file_read_err//\"/\\\"}"
+            file_read_err="${file_read_err//$'\r'/%0D}"
+          fi
+        
+          JSON_RETURN_VALUES="$JSON_RETURN_VALUES{ \"file\": \"$linux_file_path\", \"value\": \"$linux_file_value\", \"err\": \"$file_read_err\" }"
+        
+          # suppress not zero exit code
+          (( index++, 1 ))
+        done
+        
+        if (( index )); then
+          if (( had_values )); then
+            prev_return_values="$prev_return_values, "
+          fi
+        
+          JSON_RETURN_VALUES="$prev_return_values{ \"linux-files\": [ $JSON_RETURN_VALUES ] }"
+        
+          echo "JSON_RETURN_VALUES=$JSON_RETURN_VALUES" >> "$GITHUB_ENV"
+        fi
+
+    - name: check Linux commands
+      id: check-linux-commands
+      shell: bash
+      run: |
+        linux_command_lines=()
+        
+        prev_return_values="$JSON_RETURN_VALUES"
+        JSON_RETURN_VALUES=''
+        
+        if [[ -n "$prev_return_values" ]]; then
+          had_values=1
+        else
+          had_values=0
+        fi
+        
+        # suppress not zero exit code
+        { IFS=$' \t' read -r -d '' linux_command_lines_text || (( 1 )); } << ::EOF::
+        ${{ inputs.linux-command-lines }}
+        ::EOF::
+        
+        # trim trailing line returns
+        linux_command_lines_text="$(echo "$linux_command_lines_text")"
+        
+        while IFS=$'\n' read -r linux_command_line; do
+          if [[ -n "${linux_command_line//$' \t'/}" ]]; then
+            linux_command_lines[${#linux_command_lines[@]}]="$linux_command_line"
+          fi
+        done <<< "$linux_command_lines_text"
+        
+        index=0
+        
+        IFS=$' \t'; for linux_command_line in "${linux_command_lines[@]}"; do
+          linux_command=''
+          linux_command_out=''
+        
+          check_which=0
+       
+          case "$linux_command_line" in
+            lsb_release | lsb_release[$' \t']*)
+              linux_command='lsb_release'
+              check_which=1
+              ;;
+            hostnamectl | hostnamectl[$' \t']*)
+              linux_command='hostnamectl'
+              check_which=1
+              ;;
+            uname | uname[$' \t']*)
+              linux_command='uname'
+              check_which=1
+              ;;
+            echo | echo[$' \t']*)
+              linux_command='echo'
+              ;;
+          esac
+        
+          if [[ -z "$linux_command" ]]; then
+            continue
+          fi
+        
+          echo ">$linux_command_line"
+        
+          # disabled because sometimes fails w/o reason
+          #if (( check_which )) && ! which "$linux_command"; then
+          #  continue
+          #fi
+        
+          if (( index )); then
+            JSON_RETURN_VALUES="$JSON_RETURN_VALUES, "
+          fi
+        
+          eval "linux_command_args=( "${linux_command_line#*[$' \t']}" )"
+        
+          # suppress not zero exit code
+          "$linux_command" "${linux_command_args[@]}" > "${{ runner.temp }}/out.txt" 2> "${{ runner.temp }}/err.txt" || (( 1 ))
+        
+          linux_command_out="$(<"${{ runner.temp }}/out.txt")"
+          linux_command_err="$(<"${{ runner.temp }}/err.txt")"
+          
+          if [[ -n "$linux_command_err" ]]; then
+            echo "$linux_command_err"$'\n---'
+        
+            # escaping
+            linux_command_err="${linux_command_err//\\/\\\\}"
+            linux_command_err="${linux_command_err//\"/\\\"}"
+            linux_command_err="${linux_command_err//%/%25}"
+            linux_command_err="${linux_command_err//$'\n'/%0A}"
+            linux_command_err="${linux_command_err//$'\r'/%0D}"
+          fi
+        
+          if [[ -n "$linux_command_out" ]]; then
+            # escaping
+            linux_command_out="${linux_command_out//\\/\\\\}"
+            linux_command_out="${linux_command_out//\"/\\\"}"
+            linux_command_out="${linux_command_out//%/%25}"
+            linux_command_out="${linux_command_out//$'\n'/%0A}"
+            linux_command_out="${linux_command_out//$'\r'/%0D}"
+          fi
+        
+          linux_command_line="${linux_command_line//\\/\\\\}"
+          linux_command_line="${linux_command_line//\"/\\\"}"
+        
+          JSON_RETURN_VALUES="$JSON_RETURN_VALUES{ \"line\": \"$linux_command_line\", \"command\": \"$linux_command\", \"args\": [ "
+        
+          index2=0
+        
+          IFS=$' \t'; for arg in "${linux_command_args[@]}"; do
+            if (( index2 )); then
+              JSON_RETURN_VALUES="$JSON_RETURN_VALUES, "
+            fi
+        
+            if [[ -n "$arg" ]]; then
+              # escaping
+              arg="${arg//\\/\\\\}"
+              arg="${arg//\"/\\\"}"
+        
+              JSON_RETURN_VALUES="$JSON_RETURN_VALUES\"$arg\""
+            fi
+        
+            # suppress not zero exit code
+            (( index2++, 1 ))
+          done
+        
+          JSON_RETURN_VALUES="$JSON_RETURN_VALUES ], \"out\": \"$linux_command_out\", \"err\": \"$linux_command_err\" }"
+        
+          # suppress not zero exit code
+          (( index++, 1 ))
+        done
+        
+        if (( index )); then
+          if (( had_values )); then
+            prev_return_values="$prev_return_values, "
+          fi
+        
+          JSON_RETURN_VALUES="$prev_return_values{ \"linux-commands\": [ $JSON_RETURN_VALUES ] }"
+        
+          echo "JSON_RETURN_VALUES=$JSON_RETURN_VALUES" >> "$GITHUB_ENV"
+        fi
+
+    - name: return values
+      id: return-values
+      shell: bash
+      run: |
+        JSON_RETURN_VALUES="[ $JSON_RETURN_VALUES ]"
+        echo "::set-output name=json-return-values::$JSON_RETURN_VALUES"
