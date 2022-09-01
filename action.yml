@@ -20,12 +20,12 @@ inputs:
     #   linux-files: |
     #     /etc/os-release ...
     #   ```
-  linux-command-lines:
+  linux-commands:
     description: Linux commands to execute as list of lines with quote characters
     required: false
     # example:
     #   ```yml
-    #   linux-command-lines: |
+    #   linux-commands: |
     #     echo "$"
     #     lsb_release -a
     #     hostnamectl
@@ -38,9 +38,9 @@ outputs:
     description: Escaped and encoded values in JSON format
     value: ${{ steps.return-values.outputs.json-return-values }}
     # examples:
-    #   `[ { "gh-vars": [ { "tag": "runner-os", "name": "runner.os", "value": "<escaped-and-encoded-variable-value>" }, ...] }, ...]`
-    #   `[ { "linux-files": [ { "file": "/etc/os-version", "value": "<escaped-and-encoded-file-content>" }, ...] }, ...]`
-    #   `[ { "linux-commands": [ { "line": "lsb_release -a", "command": "lsb_release", "args": [ "-a" ], "out": "<escaped-and-encoded-command-out>" }, "err": "<escaped-and-encoded-command-err>" }, ...] }, ...]`
+    #   `"gh-vars": [ { "tag": "runner-os", "name": "runner.os", "value": "<escaped-and-encoded-variable-value>" }, ...]`
+    #   `"linux-files": [ { "file": "/etc/os-version", "value": "<escaped-and-encoded-file-content>", "err": "<escaped-and-encoded-file-read-err>" }, ...]`
+    #   `"linux-commands": [ { "line": "lsb_release -a", "command": "lsb_release", "args": [ "-a" ], "out": "<escaped-and-encoded-command-out>" }, "err": "<escaped-and-encoded-command-err>" }, ...]`
     #
     #   , where `<escaped-and-encoded-file-content>` has these character escaping rules in predefined order:
     #     \  -> \\
@@ -114,7 +114,7 @@ runs:
             prev_return_values="$prev_return_values, "
           fi
         
-          JSON_RETURN_VALUES="$prev_return_values{ \"gh-vars\": [ $JSON_RETURN_VALUES ] }"
+          JSON_RETURN_VALUES="$prev_return_values\"gh-vars\": [ $JSON_RETURN_VALUES ]"
         
           echo "JSON_RETURN_VALUES=$JSON_RETURN_VALUES" >> "$GITHUB_ENV"
         fi
@@ -200,7 +200,7 @@ runs:
             prev_return_values="$prev_return_values, "
           fi
         
-          JSON_RETURN_VALUES="$prev_return_values{ \"linux-files\": [ $JSON_RETURN_VALUES ] }"
+          JSON_RETURN_VALUES="$prev_return_values\"linux-files\": [ $JSON_RETURN_VALUES ]"
         
           echo "JSON_RETURN_VALUES=$JSON_RETURN_VALUES" >> "$GITHUB_ENV"
         fi
@@ -222,7 +222,7 @@ runs:
         
         # suppress not zero exit code
         { IFS=$' \t' read -r -d '' linux_command_lines_text || (( 1 )); } << ::EOF::
-        ${{ inputs.linux-command-lines }}
+        ${{ inputs.linux-commands }}
         ::EOF::
         
         # trim trailing line returns
@@ -338,7 +338,7 @@ runs:
             prev_return_values="$prev_return_values, "
           fi
         
-          JSON_RETURN_VALUES="$prev_return_values{ \"linux-commands\": [ $JSON_RETURN_VALUES ] }"
+          JSON_RETURN_VALUES="$prev_return_values\"linux-commands\": [ $JSON_RETURN_VALUES ]"
         
           echo "JSON_RETURN_VALUES=$JSON_RETURN_VALUES" >> "$GITHUB_ENV"
         fi
@@ -347,5 +347,5 @@ runs:
       id: return-values
       shell: bash
       run: |
-        JSON_RETURN_VALUES="[ $JSON_RETURN_VALUES ]"
+        JSON_RETURN_VALUES="{ $JSON_RETURN_VALUES }"
         echo "::set-output name=json-return-values::$JSON_RETURN_VALUES"

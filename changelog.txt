@@ -1,3 +1,7 @@
+2022.09.01:
+* changed: action.yml: improvements
+* changed: `README.md` readme file
+
 2022.08.31:
 * new: `README.md` readme file
 * new: `changelog.txt` changelog file

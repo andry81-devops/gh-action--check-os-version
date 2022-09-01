@@ -79,7 +79,7 @@ All tutorials: https://github.com/andry81/index#tutorials
     > cat '/etc/os-release'
 
   * ```yml
-    linux-command-lines: |
+    linux-commands: |
       echo "$ImageOS: $ImageVersion"
       lsb_release -a
       hostnamectl
@@ -106,22 +106,58 @@ All tutorials: https://github.com/andry81/index#tutorials
       with:
         gh-var-tags: runner-os
         linux-files: /etc/os-release
-        linux-command-lines: |
+        linux-commands: |
           echo "$ImageOS: $ImageVersion"
           uname -r
           lsb_release -a
           hostnamectl
 
-    - shell: bash
+    - name: read and decode return values
+      shell: bash
       env:
         check_os_version: ${{ steps.check-os-version.outputs.json-return-values }}
       run: |
         check_os_version="${check_os_version//$'\t'/\\t}"
         check_os_version="${check_os_version//$'\n'/\\n}"
         check_os_version="${check_os_version//$'\r'/\\r}"
+        echo "check_os_version=$check_os_version" >> "$GITHUB_ENV"
         echo "check_os_version=$check_os_version"
         echo "JSON_RETURN_VALUES=$JSON_RETURN_VALUES"
-        echo -n "$check_os_version" | tr -d [:cntrl:] | jq
+
+    - name: print return values
+      shell: bash
+      run: |
+        check_os_version="$(echo -n "$check_os_version" | tr -d [:cntrl:])"
+        
+        jq <<< "$check_os_version"
+        
+        for key in $(jq -r "keys|.[]" <<< "$check_os_version"); do
+          case "$key" in
+            gh-vars)
+              title_var="name"
+              value_var="value"
+              ;;
+            linux-files)
+              title_var="file"
+              value_var="value"
+              ;;
+            linux-commands)
+              title_var="line"
+              value_var="out"
+              ;;
+          esac
+        
+          for i in $(jq -r ".\"$key\"|keys|.[]" <<< "$check_os_version"); do
+            # suppress not zero exit code
+            IFS=$'\n' read -r -d '' title value <<< $(jq -r ".\"$key\"[$i].$title_var,.\"$key\"[$i].$value_var" <<< "$check_os_version") || (( 1 ))
+            value="${value//\\t/$'\t'}"
+            value="${value//\\n/$'\n'}"
+            value="${value//\\r/$'\r'}"
+            value="${value//\\\"/\"}"
+            value="${value//\\\\/\\}"
+            echo ">$title:"$'\n'"$value"$'\n---'
+          done
+        done
 ```
 
 ---
