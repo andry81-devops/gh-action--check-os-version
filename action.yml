@@ -348,4 +348,4 @@ runs:
       shell: bash
       run: |
         JSON_RETURN_VALUES="{ $JSON_RETURN_VALUES }"
-        echo "::set-output name=json-return-values::$JSON_RETURN_VALUES"
+        echo "json-return-values=$JSON_RETURN_VALUES" >> "$GITHUB_OUTPUT"
