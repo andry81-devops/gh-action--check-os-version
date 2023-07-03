@@ -53,10 +53,11 @@ outputs:
 runs:
   using: "composite"
   steps:
-    - name: check GitHub variables
+    - name: '[check-os-version][01] check GitHub variables'
       id: check-gh-vars
       shell: bash
       run: |
+        ### [check-os-version][01] check GitHub variables
         IFS=$' \t' gh_var_tags=( ${{ inputs.gh-var-tags }} )
         
         prev_return_values="$JSON_RETURN_VALUES"
@@ -119,10 +120,11 @@ runs:
           echo "JSON_RETURN_VALUES=$JSON_RETURN_VALUES" >> "$GITHUB_ENV"
         fi
 
-    - name: check Linux files
+    - name: '[check-os-version][02] check Linux files'
       id: check-linux-files
       shell: bash
       run: |
+        ### [check-os-version][02] check Linux files
         linux_file_paths=()
         
         prev_return_values="$JSON_RETURN_VALUES"
@@ -205,10 +207,11 @@ runs:
           echo "JSON_RETURN_VALUES=$JSON_RETURN_VALUES" >> "$GITHUB_ENV"
         fi
 
-    - name: check Linux commands
+    - name: '[check-os-version][03] check Linux commands'
       id: check-linux-commands
       shell: bash
       run: |
+        ### [check-os-version][03] check Linux commands
         linux_command_lines=()
         
         prev_return_values="$JSON_RETURN_VALUES"
@@ -343,9 +346,10 @@ runs:
           echo "JSON_RETURN_VALUES=$JSON_RETURN_VALUES" >> "$GITHUB_ENV"
         fi
 
-    - name: return values
+    - name: '[check-os-version][04] return values'
       id: return-values
       shell: bash
       run: |
+        ### [check-os-version][04] return values
         JSON_RETURN_VALUES="{ $JSON_RETURN_VALUES }"
         echo "json-return-values=$JSON_RETURN_VALUES" >> "$GITHUB_OUTPUT"
