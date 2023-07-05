@@ -96,7 +96,7 @@ All tutorials: https://github.com/andry81/index#tutorials
 
 # USAGE
 
-## <a name="example-snippet">Example snippet</a>:
+## Example snippet:
 
 ```yml
   steps:
@@ -166,12 +166,12 @@ All tutorials: https://github.com/andry81/index#tutorials
 
 ## Known Issues
 
-https://github.com/andry81-devops/github-action-extensions#known-issues
+https://github.com/andry81-devops/gh-known-issues#known-issues
 
 ## Last known issues updates
 
-https://github.com/andry81-devops/github-action-extensions#last-known-issues-updates
+https://github.com/andry81-devops/gh-known-issues#last-known-issues-updates
 
-## <a name="copyright-and-license">Copyright and License</a>
+## Copyright and License
 
 Code and documentation copyright 2022 Andrey Dibrov. Code released under [MIT License](https://github.com/andry81-devops/gh-action--check-os-version/blob/master/license.txt)
