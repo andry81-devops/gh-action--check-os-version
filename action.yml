@@ -4,6 +4,10 @@
 name: check-os-version
 description: 'GitHub composite action to check and read OS version details into variables'
 
+branding:
+  icon:  info
+  color: gray
+
 inputs:
   gh-var-tags:
     description: GitHub variables to return as list of tags
